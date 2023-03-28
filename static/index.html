@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width" />
     <meta name="license" content="
         Copyright 2013 Google, Abram Hindle
+        Copyright 2023 Micheal Chow
         
         Licensed under the Apache License, Version 2.0 (the "License");
         you may not use this file except in compliance with the License.
@@ -21,18 +22,56 @@
         limitations under the License.
     "/>
     <script src="json2.js"></script>
+    <style> 
+        .container {
+            display: flex;
+        }
+        .center {
+            -webkit-tap-highlight-color: transparent;
+            height: 100vh;
+            width: 80vw;
+            /* float: left; */
+        }
+        .side {
+            height: 100vh;
+            width: 10vw;
+            text-align: center;
+            /* float: left; */
+        }
+        .left {
+            /* left: 0; */
+            background-color: burlywood;
+        }
+        .right {
+            /* right: 0; */
+            background-color: cornflowerblue;
+        }
+    </style>
   </head> 
-  <body bgcolor="white" height="100%" width="100%"> 
-    <div id="debug"></div>
-    <canvas id="c" width="100%" height="100%" style="-webkit-tap-highlight-color: transparent;"></canvas> 
-
+  <body bgcolor="black" height="100%" width="100%">
+    <div hidden id="debug"></div>
+    <div class="container">
+        <div class="side left">
+            <h3>Colours</h3>
+            <input id="colorPicker" type="color">
+            <div>
+                <input id="eraser" type="checkbox">
+                <label for="eraser">Eraser</label>
+            </div>
+        </div>
+        <canvas id="c" class="center"></canvas> 
+        <div class="side right">
+            <h3>Thickness</h3>
+            <input id="thickness" type="range" min="1" max="50">
+            <button id="clear">Clear Canvas</button>
+        </div>
+    </div>
     <script>
-      // Fix me
 var canvas = document.getElementById('c');
 var host = window.location.host;
 var context = canvas.getContext("2d");
-var W = canvas.width  = window.innerWidth-6;
-var H = canvas.height = window.innerHeight-50;
+var W = canvas.width  = (window.innerWidth*0.8)-6;
+var H = canvas.height = window.innerHeight-10;
 var wscounter = 0;
 var socket;
 
@@ -55,16 +94,23 @@ function drawCircle(context,entity) {
         fillStyle = entity["colour"];
         strokeStyle = fillStyle;
         arc(x, y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);  
-        stroke();                                
+        fill();                                
     }
 }
 
 function prepEntity(entity) {
     if (!entity["colour"]) {
-        entity["colour"] = "#FF0000";
+        if (document.getElementById('eraser').checked) {
+            entity["colour"] = "black"
+        } else {
+            var colour = document.getElementById('colorPicker').value;
+            entity["colour"] = colour;
+        }
     }
+
     if (!entity["radius"]) {
-        entity["radius"] = 50;
+        var radius = document.getElementById('thickness').value;
+        entity["radius"] = radius;
     }
     return entity;
 }
@@ -125,10 +171,14 @@ function addEntity(entity, data) {
     world[entity] = data;
     drawNextFrame(); // (but should we?)
     //XXX: Send a XHTML Request that updates the entity you just modified!
+    socket.send(JSON.stringify( {entity: data} ))
+    // if (socket.readyState === socket.OPEN) {
+    //     socket.send(JSON.stringify(world));
+    // }
 }
 var counter = 0;
 function addEntityWithoutName(data) {
-    var name = "X"+(counter++)%100;
+    var name = "X"+(counter++);
     addEntity(name,data);
 }
 
@@ -231,20 +281,42 @@ mouse = (function() {
 // Add the application specific mouse listeners!
 //XXX: TODO Make these prettier!
 mouse.mousedowners.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'blue'});
+    var newEntity = setEntity(x,y)
+    addEntityWithoutName(newEntity);
 });
 
-mouse.mouseuppers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'red'});
-});
+// mouse.mouseuppers.push(function(x,y,clicked,e) {
+//     addEntityWithoutName({'x':x,'y':y,'colour':'red'});
+// });
 
 mouse.mousedraggers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'green',
-                          'radius':10});
+    var newEntity = setEntity(x,y)
+    addEntityWithoutName(newEntity);
 });
 
+function setEntity(x,y) {
+    var entity = {'x':x,'y':y}
+
+    if (document.getElementById('eraser').checked) {
+        entity["colour"] = "black"
+    } else {
+        var colour = document.getElementById('colorPicker').value;
+        entity["colour"] = colour;
+    }
+
+    var radius = document.getElementById('thickness').value;
+    entity["radius"] = radius;
+
+    return entity;
+}
 
 function update() {
+    drawFrame();
+}
+
+function clearCanvas() {
+    world.clear();
+    clearFrame();
     drawFrame();
 }
 
@@ -254,6 +326,7 @@ function wsSetup() {
     socket = new WebSocket(url);
     socket.onopen = function() {
         //XXX: TODO What are you going to do here?
+        debug("WebSocket Opened!");
     };
     socket.onerror = function(msg) {
         debug("WebSocket Error:" + msg.data);
@@ -261,7 +334,11 @@ function wsSetup() {
     socket.onmessage = function(msg) {  
         try {
             debug("WebSocket Recv:" + msg.data);
-            //XXX: TODO What are you going to do here?            
+            var data = JSON.parse(msg.data)
+            for (let datum in data) {
+                world[data] = data[datum];
+            }
+            drawNextFrame();
         } catch (e) {
             alert("socket on message: " + e);
         }
@@ -271,7 +348,7 @@ function wsSetup() {
 wsSetup();
 
 
-
+document.getElementById("clear").addEventListener("click", clearCanvas);
 
 // 30 frames per second
 setInterval( update, 1000/30.0);
