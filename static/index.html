@@ -49,14 +49,14 @@
     </style>
   </head> 
   <body bgcolor="black" height="100%" width="100%">
-    <div hidden id="debug"></div>
-    <div class="container">
-        <div class="side left">
-            <h3>Colours</h3>
-            <input id="colorPicker" type="color">
-            <div>
-                <input id="eraser" type="checkbox">
-                <label for="eraser">Eraser</label>
+      <div class="container">
+          <div class="side left">
+              <h3>Colours</h3>
+              <input id="colorPicker" type="color">
+              <div>
+                  <input id="eraser" type="checkbox">
+                  <label for="eraser">Eraser</label>
+                  <div id="debug"></div>
             </div>
         </div>
         <canvas id="c" class="center"></canvas> 
@@ -171,7 +171,10 @@ function addEntity(entity, data) {
     world[entity] = data;
     drawNextFrame(); // (but should we?)
     //XXX: Send a XHTML Request that updates the entity you just modified!
-    socket.send(JSON.stringify( {entity: data} ))
+    let thing = { };
+    thing[entity] = data;
+    <!-- console.log(JSON.stringify({ entity.toString() : 1 })); -->
+    socket.send(JSON.stringify( thing ));
     // if (socket.readyState === socket.OPEN) {
     //     socket.send(JSON.stringify(world));
     // }
@@ -336,7 +339,7 @@ function wsSetup() {
             debug("WebSocket Recv:" + msg.data);
             var data = JSON.parse(msg.data)
             for (let datum in data) {
-                world[data] = data[datum];
+                world[datum] = data[datum];
             }
             drawNextFrame();
         } catch (e) {
